@@ -1,5 +1,6 @@
 interface Memory {
-    sources: { [name: string]: SourceMemory };
+    sources: { [id: string]: SourceMemory };
+    departments: { [id: string]: DPTMemory };
 }
 interface CreepMemory {
     dptId: string;

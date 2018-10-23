@@ -2,8 +2,9 @@ import './extensions/room';
 import './extensions/source';
 import './extensions/creep';
 import { ErrorMapper } from "utils/ErrorMapper";
-import { MineDPT } from "departments/MineDPT";
+import { MineDPT } from "departments/mineDPT";
 import { uuid } from 'utils/UUID';
+import { Government } from 'departments/government';
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -20,7 +21,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
         //console.log("Source " + source.id + " is owned by " + source.dptId);
       } else {
         let dpt = new MineDPT();
+        Government.departments[dpt.id] = dpt;
         source.dptId = dpt.id;
+        dpt.Memory.eSourceId = source.id;
+        dpt.Memory.storageId = Game.spawns["Spawn1"].id;
         console.log("Created new DPT for source" + source.id + ": " + dpt.id);
       }
       if (!dpiIds.includes(source.dptId))
@@ -28,37 +32,23 @@ export const loop = ErrorMapper.wrapLoop(() => {
     }
   }
   for (const creep of Object.values(Game.creeps)) {
+    if (creep.id == null) // spawning. other cases ??
+      continue;
     if (creep.dptId != null) {
       //console.log("Creep " + creep.id + " is owned by " + creep.dptId);
     } else {
+      console.log(JSON.stringify(creep));
       creep.dptId = dpiIds[Math.floor(Math.random() * dpiIds.length)];
+      let dpt = (Government.departments[creep.dptId] as MineDPT);
+      dpt.Memory.creepIds = dpt.Memory.creepIds || [];
+      dpt.Memory.creepIds.push(creep.id);
       console.log("Assigning creep " + creep.id + ": " + creep.dptId);
     }
   }
-  for (const creep of Object.values(Game.creeps)) {
-    for (const room of Object.values(Game.rooms)) {
-      for (const eSource of room.eSources) {
-        if (creep.dptId == eSource.dptId) {
-          harvest(creep, eSource, Game.spawns["Spawn1"]);
-        }
-      }
-    }
-  }
-});
+  for (const dpi of Object.values(Government.departments))
+    dpi.work();
 
-function harvest(creep: Creep, eSource: Source, eStorage: StructureSpawn) {
-  if (creep.carry.energy != creep.carryCapacity) {
-    if (creep.harvest(eSource) == ERR_NOT_IN_RANGE) {
-      //console.log(creep + " moving to eSource");
-      creep.moveTo(eSource, { visualizePathStyle: { stroke: '#ffaa00' } });
-    }
-  } else {
-    if (creep.transfer(eStorage, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-      //console.log(creep + " moving to home");
-      creep.moveTo(eStorage, { visualizePathStyle: { stroke: '#ffffff' } });
-    }
-  }
-}
+});
 
 function setup() {
   /*if (Game.time % 1000 == 0) {
@@ -74,5 +64,14 @@ function setup() {
 
   if (Memory.sources == null)
     Memory.sources = {};
+  if (Memory.departments == null)
+    Memory.departments = {};
 
+  for (let [id, dptMemory] of Object.entries(Memory.departments)) {
+    switch (dptMemory.type) {
+      case MineDPT.name:
+        Government.departments[id] = new MineDPT(id);
+        break;
+    }
+  }
 }
